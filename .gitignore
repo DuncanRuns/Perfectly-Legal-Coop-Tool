@@ -157,3 +157,4 @@ test*
 toexe.bat
 *.json
 upload*
+crashes*

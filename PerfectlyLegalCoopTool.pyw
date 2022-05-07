@@ -610,7 +610,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._reset_states()
 
 
-if __name__ == "__main__":
+def main():
     settings_json = {}
     if os.path.isfile("plct_settings.json"):
         with open("plct_settings.json", "r") as settings_file:
@@ -618,3 +618,21 @@ if __name__ == "__main__":
             settings_file.close()
     plct = PerfectlyLegalCoopTool(settings_json, "plct_settings.json")
     plct.mainloop()
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except:
+        ans = tkMessageBox.askyesno(
+            "PLCT Error", "An error has occured running PLCT,\ncreate error file and open?")
+        if ans:
+            import webbrowser, os, time, traceback
+            if not os.path.isdir("crashes"):
+                os.mkdir("crashes")
+            name = str(time.time()) + ".txt"
+            f = open("crashes/" + name, "w+")
+            f.write(traceback.format_exc())
+            f.close()
+            webbrowser.open(os.path.abspath(
+                os.path.join(os.getcwd(), "crashes", name)))
