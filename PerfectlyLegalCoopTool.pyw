@@ -351,7 +351,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         tk.Label(current_clipboard_frame, textvariable=self._clipboard_var, width=25, anchor="e").grid(
             row=1, column=0, sticky="w")
 
-        ttk.Checkbutton(clipboard_frame, text="Receive Clipboard", variable=self._receive_clipboard_var, command=self._set_saveable).grid(
+        ttk.Checkbutton(clipboard_frame, text="Receive Clipboard", variable=self._receive_clipboard_var, command=self._on_receive_clipboard_button).grid(
             row=1, column=0, padx=5, pady=5, sticky="w")
 
         send_frame = ttk.Frame(clipboard_frame)
@@ -413,6 +413,14 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                 self._instances_folder_var.set(".................... Currently Unset" if (
                     self._instances_folder is None or self._instances_folder == "") else ".................... " + self._instances_folder)
                 self._set_saveable()
+
+    def _on_receive_clipboard_button(self, *args) -> None:
+        if self._receive_clipboard_var.get():
+            message = self._clipboard_var.get()
+            if not (clipboard.paste() == message or message == ""):
+                clipboard.copy(message)
+            print("Received clipboard.")
+        self._set_saveable()
 
     def _upload_latest_button(self, *args) -> None:
         if not self._uploading:
@@ -584,14 +592,14 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._send_clipboard_var.set(
             self._original_settings.get("sendClipboard", False))
 
-        self._upload_password_entry.config(state="enabled")
-        self._upload_password_entry.delete(0, tk.END)
-        self._upload_password_entry.insert(
-            0, self._original_settings.get("uploadPassword", ""))
-
         self._clipboard_password_entry.config(state="enabled")
         self._clipboard_password_entry.delete(0, tk.END)
         self._clipboard_password_entry.insert(
+            0, self._original_settings.get("clipboardPassword", ""))
+
+        self._upload_password_entry.config(state="enabled")
+        self._upload_password_entry.delete(0, tk.END)
+        self._upload_password_entry.insert(
             0, self._original_settings.get("uploadPassword", ""))
 
         self._instances_folder = self._original_settings.get(
