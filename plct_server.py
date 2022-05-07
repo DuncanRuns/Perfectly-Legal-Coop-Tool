@@ -51,13 +51,14 @@ class PLCTClientInstance:
         with open(file_path, "wb") as f:
             if len(self._receive_bytes) > 0:
                 newrecv = self._receive_bytes
+                self._receive_bytes = b''
                 if bytes_left < 1024:
                     self._receive_bytes = newrecv[bytes_left:]
                     newrecv = newrecv[:bytes_left]
                 bytes_left -= len(newrecv)
                 f.write(newrecv)
             while bytes_left > 0:
-                newrecv = self._socket.recv(1024)
+                newrecv = self._socket.recv(min(bytes_left, 1024))
                 if bytes_left < 1024:
                     self._receive_bytes = newrecv[bytes_left:]
                     newrecv = newrecv[:bytes_left]
@@ -67,16 +68,22 @@ class PLCTClientInstance:
             print("!")
 
     def _fake_download_file(self, size: int) -> None:
+        print("Fake Downloading file...")
         bytes_left = size
         if len(self._receive_bytes) > 0:
             newrecv = self._receive_bytes
+            self._receive_bytes = b''
             if bytes_left < 1024:
                 self._receive_bytes = newrecv[bytes_left:]
                 newrecv = newrecv[:bytes_left]
             bytes_left -= len(newrecv)
         while bytes_left > 0:
-            newrecv = self._socket.recv(min(1024, bytes_left))
+            newrecv = self._socket.recv(min(bytes_left, 1024))
+            if bytes_left < 1024:
+                self._receive_bytes = newrecv[bytes_left:]
+                newrecv = newrecv[:bytes_left]
             bytes_left -= len(newrecv)
+        print("!")
 
     def _on_pack(self, pack: dict) -> None:
         try:

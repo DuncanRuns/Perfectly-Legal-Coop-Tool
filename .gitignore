@@ -156,3 +156,4 @@ cython_debug/
 test*
 toexe.bat
 *.json
+upload*

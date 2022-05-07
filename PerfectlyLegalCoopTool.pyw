@@ -6,7 +6,9 @@ import tkinter.messagebox as tkMessageBox
 from sys import maxsize
 from typing import Callable, List, Union
 
-VERSION = "0.0.0"
+VERSION = "1.0.0"
+
+UPLOADS_ENTIRE_WORLD = True
 
 
 def resource_path(relative_path):
@@ -131,7 +133,7 @@ class PLCTClient:
 
     def connect(self, address: str, port: int) -> None:
         self.disconnect()
-        time.sleep(0.05)
+        time.sleep(0.05)  # Magic number :(
         print("Attempting new connection...")
         self._send_lock = threading.Lock()
         self._connecting = True
@@ -243,6 +245,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self.title("Perfectly Legal Coop Tool v" + VERSION)
         self.resizable(0, 0)
         self.protocol("WM_DELETE_WINDOW", self._exit)
+        self.wm_attributes("-topmost", 1)
         try:
             self.iconbitmap(resource_path("PLC.ico"))
         except:
@@ -254,6 +257,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._last_paste = ""
         self._settings_path = settings_path
         self._original_settings = settings.copy()
+        self._uploading = False
 
         # Tk Variables
         self._receive_clipboard_var = tk.BooleanVar(
@@ -366,7 +370,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
 
     def _init_upload_widgets(self, parent) -> None:
         outer_upload_frame = RetractableFrame(parent, text="World Upload")
-        outer_upload_frame.grid(row=2, column=0)
+        outer_upload_frame.grid(row=2, column=0, padx=5, pady=5)
         upload_frame = outer_upload_frame.inner_frame
         outer_upload_frame.retract()
 
@@ -411,38 +415,84 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                 self._set_saveable()
 
     def _upload_latest_button(self, *args) -> None:
-        if self._plct_client.get_status() == "connected" and self._instances_folder is not None and self._instances_folder != "":
-            world_path = get_latest_world_from_instances(
-                self._instances_folder)
-            level_dat_path = os.path.join(world_path, "level.dat")
+        if not self._uploading:
+            threading.Thread(target=self._upload_latest_world).start()
+
+    def _upload_latest_world(self) -> None:
+        self._uploading = True
+        try:
+            if self._plct_client.get_status() == "connected" and self._instances_folder is not None and self._instances_folder != "":
+                world_path = get_latest_world_from_instances(
+                    self._instances_folder)
+                if not UPLOADS_ENTIRE_WORLD:
+                    level_dat_path = os.path.join(world_path, "level.dat")
+                    self._plct_client.send(json.dumps({
+                        "type": "upload",
+                        "password": self._upload_password_entry.get(),
+                        "name": "level.dat",
+                        "dir": "world",
+                        "size": os.path.getsize(level_dat_path)
+                    }).encode())
+                    with open(level_dat_path, "rb") as dat_file:
+                        while True:
+                            data = dat_file.read(1024)
+                            if not data:
+                                break
+                            self._plct_client.send(data)
+                        dat_file.close()
+                else:
+                    self._upload_entire_world(world_path)
+                self._plct_client.send(json.dumps({
+                    "type": "uploaddone",
+                    "password": self._upload_password_entry.get()
+                }).encode())
+                tkMessageBox.showinfo("PLCT: Upload Latest World",
+                                      "Successfully uploaded " + (world_path.replace("\\", "/")) + ".\n(If the password was incorrect, the server ignored your upload)")
+            else:
+                tkMessageBox.showerror(
+                    "PLCT: Upload Latest World", ((
+                        "\nNo instances folder set." if self._instances_folder is None or self._instances_folder == "" else ""
+                    ) + (
+                        "" if self._plct_client.get_status(
+                        ) == "connected" else "\nNot connected to any server."
+                    )).rstrip())
+        except:
+            tkMessageBox.showerror(
+                "PLCT: Upload Latest World", "Failed to upload world:\n" + traceback.format_exc())
+            print("Failed")
+        self._uploading = False
+
+    def _upload_entire_world(self, world_path) -> None:
+        def send_file(file_path, dir):
             self._plct_client.send(json.dumps({
                 "type": "upload",
                 "password": self._upload_password_entry.get(),
-                "name": "level.dat",
-                "dir": "world",
-                "size": os.path.getsize(level_dat_path)
+                "dir": dir.replace("\\", "/"),
+                "size": os.path.getsize(file_path),
+                "name": os.path.split(file_path.replace("\\", "/"))[-1].strip("/")
             }).encode())
-            with open(level_dat_path, "rb") as dat_file:
+            with open(file_path, "rb") as f:
                 while True:
-                    data = dat_file.read(1024)
+                    data = f.read(1024)
                     if not data:
                         break
                     self._plct_client.send(data)
-                dat_file.close()
-            self._plct_client.send(json.dumps({
-                "type": "uploaddone",
-                "password": self._upload_password_entry.get()
-            }).encode())
-            tkMessageBox.showinfo("PLCT: Upload Latest World",
-                                  "Successfully uploaded " + (world_path.replace("\\", "/")) + ".\n(If the password was incorrect, the server ignored your upload)")
-        else:
-            tkMessageBox.showerror(
-                "PLCT: Upload Latest World", ((
-                    "\nNo instances folder set." if self._instances_folder is None or self._instances_folder == "" else ""
-                ) + (
-                    "" if self._plct_client.get_status(
-                    ) == "connected" else "\nNot connected to any server."
-                )).rstrip())
+                f.close()
+        world_name = os.path.split(
+            world_path.replace("\\", "/"))[-1].strip("/")
+
+        files_to_upload = ["level.dat"]
+        folders_to_upload = ["advancements", "data",
+                             "playerdata", "poi", "region", "stats"]
+
+        for file_name in files_to_upload:
+            send_file(os.path.join(world_path, file_name), world_name)
+        for folder_name in folders_to_upload:
+            folder_path = os.path.join(world_path, folder_name)
+            if os.path.isdir(folder_path):
+                for file_name in os.listdir(folder_path):
+                    send_file(os.path.join(folder_path, file_name),
+                              os.path.join(world_name, folder_name))
 
     def _test_latest_button(self, *args) -> None:
         if self._instances_folder is not None and self._instances_folder != "":
@@ -539,9 +589,9 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._upload_password_entry.insert(
             0, self._original_settings.get("uploadPassword", ""))
 
-        self._upload_password_entry.config(state="enabled")
-        self._upload_password_entry.delete(0, tk.END)
-        self._upload_password_entry.insert(
+        self._clipboard_password_entry.config(state="enabled")
+        self._clipboard_password_entry.delete(0, tk.END)
+        self._clipboard_password_entry.insert(
             0, self._original_settings.get("uploadPassword", ""))
 
         self._instances_folder = self._original_settings.get(
@@ -560,36 +610,3 @@ if __name__ == "__main__":
             settings_file.close()
     plct = PerfectlyLegalCoopTool(settings_json, "plct_settings.json")
     plct.mainloop()
-
-'''
------------------
-Connection Panel
-
-🔴/🟢 Connected/Disconnected
-
-Address: ____ Port: _____(Default 25562)
-[Connect]
-
-
------------------
-Clipboard Panel
-
-Current Clipboard:
-..............
-❎ Receive Clipboard
-
-❎ Send Clipboard
-Password: _____
-
-
------------------
-Upload Panel
-
-Instances Folder:
-[📂] ......
-
-Upload Password: _____
-
-[Upload Latest World]
-[Test] Latest: ...........
-'''
