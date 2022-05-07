@@ -268,7 +268,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
             self, DISCONNECTED_STR)
         self._instances_folder_var = tk.StringVar(self, self._instances_folder)
         self._clipboard_var = tk.StringVar(
-            self, ("." * 50) + "(Not Connected)")
+            self, "(Not Connected)")
 
         # Tk Widgets
         self._address_entry: ttk.Entry
@@ -315,10 +315,11 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         outer_connection_frame.grid(row=0, column=0, padx=5, pady=5)
         connection_frame = outer_connection_frame.inner_frame
         ttk.Label(connection_frame, textvariable=self._connection_status_var).grid(
-            row=0, column=0, padx=5, pady=5, sticky="w")
+            row=0, column=0, padx=5, pady=5, columnspan=2)
 
         entry_frame = ttk.Frame(connection_frame)
-        entry_frame.grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        entry_frame.grid(row=1, column=0, padx=5, pady=5,
+                         sticky="w", columnspan=2)
 
         ttk.Label(entry_frame, text="Address/Port:").grid(row=0, column=0)
         self._address_entry = ttk.Entry(
@@ -328,13 +329,14 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._port_entry.config(width=7)
         self._port_entry.grid(row=0, column=2)
 
-        button_frame = ttk.Frame(connection_frame)
-        button_frame.grid(row=2, column=0, pady=5, sticky="w", padx=5)
+        #button_frame = ttk.Frame(connection_frame)
+        #button_frame.grid(row=2, column=0, pady=5, sticky="w", padx=5)
+        button_frame = connection_frame
 
         ttk.Button(button_frame, text="Connect",
-                   command=self._connect_button).grid(row=0, column=0)
+                   command=self._connect_button).grid(row=10, column=0, padx=5, sticky="we", pady=5)
         ttk.Button(button_frame, text="Disconnect",
-                   command=self._disconnect_button).grid(row=0, column=1, padx=5)
+                   command=self._disconnect_button).grid(row=10, column=1, padx=5, sticky="we", pady=5)
 
     def _init_clipboard_widgets(self, parent) -> None:
         outer_clipboard_frame = RetractableFrame(parent, text="Coop Clipboard")
@@ -342,23 +344,26 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         clipboard_frame = outer_clipboard_frame.inner_frame
         outer_clipboard_frame.retract()
 
+        ttk.Checkbutton(clipboard_frame, text="Receive Clipboard", variable=self._receive_clipboard_var, command=self._on_receive_clipboard_button).grid(
+            row=0, column=0, padx=5, pady=5)
+
         current_clipboard_frame = ttk.Frame(clipboard_frame)
         current_clipboard_frame.grid(
-            row=0, column=0, padx=5, pady=5, sticky="w")
-
-        ttk.Label(current_clipboard_frame, text="Current Clipboard:").grid(
-            row=0, column=0, sticky="w")
-        tk.Label(current_clipboard_frame, textvariable=self._clipboard_var, width=25, anchor="e").grid(
-            row=1, column=0, sticky="w")
-
-        ttk.Checkbutton(clipboard_frame, text="Receive Clipboard", variable=self._receive_clipboard_var, command=self._on_receive_clipboard_button).grid(
             row=1, column=0, padx=5, pady=5, sticky="w")
 
+        ttk.Label(current_clipboard_frame, text="Server's Clipboard:").grid(
+            row=0, column=0)
+        tk.Label(current_clipboard_frame, textvariable=self._clipboard_var, width=25).grid(
+            row=1, column=0)
+
+        ttk.Separator(clipboard_frame, orient=tk.HORIZONTAL).grid(
+            row=2, column=0, columnspan=5, pady=5, sticky="we")
+
         send_frame = ttk.Frame(clipboard_frame)
-        send_frame.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        send_frame.grid(row=3, column=0, padx=5, pady=5, sticky="w")
 
         ttk.Checkbutton(send_frame, text="Send Clipboard",
-                        variable=self._send_clipboard_var, command=self._on_send_clipboard_button).grid(row=0, column=0, sticky="w")
+                        variable=self._send_clipboard_var, command=self._on_send_clipboard_button).grid(row=0, column=0)
 
         password_frame = ttk.Frame(send_frame)
         password_frame.grid(row=1, column=0, sticky="w")
@@ -375,31 +380,34 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         outer_upload_frame.retract()
 
         path_frame = ttk.Frame(upload_frame)
-        path_frame.grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        path_frame.grid(row=0, column=0, padx=5, pady=5)
         ttk.Label(path_frame, text="MultiMC Instances Folder:").grid(
-            row=0, column=0, pady=3, sticky="w", columnspan=2)
+            row=0, column=0, pady=3, columnspan=2)
         tk.Label(path_frame, textvariable=self._instances_folder_var, anchor=tk.E, width=15).grid(
             row=1, column=1, padx=5, pady=0, sticky="w")
         ttk.Button(path_frame, text="Set", command=self._set_instances_path_button, width=3).grid(
             row=1, column=0, pady=0, sticky="w")
 
-        password_frame = ttk.Frame(upload_frame)
-        password_frame.grid(row=1, column=0, padx=5, pady=5, sticky="w")
-
-        ttk.Label(password_frame, text="Upload Password:").grid(
-            row=0, column=0)
-        self._upload_password_entry = ttk.Entry(
-            password_frame, validate='key', validatecommand=self._set_saveable, width=14)
-        self._upload_password_entry.grid(row=0, column=1)
+        ttk.Separator(upload_frame, orient=tk.HORIZONTAL).grid(
+            row=1, column=0, columnspan=5, sticky="we", pady=5)
 
         button_frame = ttk.Frame(upload_frame)
-        button_frame.grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        button_frame.grid(row=2, column=0, padx=5, pady=5)
 
         ttk.Button(button_frame, text="Upload Latest World",
                    command=self._upload_latest_button).grid(row=0, column=0, sticky="w")
 
         ttk.Button(button_frame, text="Test",
                    command=self._test_latest_button, width=4).grid(row=0, column=1, sticky="w")
+
+        password_frame = ttk.Frame(upload_frame)
+        password_frame.grid(row=3, column=0, padx=5, pady=5)
+
+        ttk.Label(password_frame, text="Upload Password:").grid(
+            row=0, column=0)
+        self._upload_password_entry = ttk.Entry(
+            password_frame, validate='key', validatecommand=self._set_saveable, width=14)
+        self._upload_password_entry.grid(row=0, column=1)
 
     def _set_instances_path_button(self, *args) -> None:
         ans = ask_for_directory(self._instances_folder)
@@ -520,7 +528,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self.after(50, self._loop)
         self._connection_status_var.set(self._plct_client.get_status_display())
         if not self._plct_client.get_status() == "connected":
-            self._clipboard_var.set(("." * 50) + "(Not Connected)")
+            self._clipboard_var.set("(Not Connected)")
 
         new_paste = clipboard.paste()
         if new_paste != self._last_paste:
