@@ -295,7 +295,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self.after(0, self._loop)  # Check clipboard in loop
 
     def _init_widgets(self) -> None:
-        main_frame = tk.Frame()
+        main_frame = ttk.Frame()
         main_frame.grid(row=0, column=0)
 
         self._init_connection_widgets(main_frame)
