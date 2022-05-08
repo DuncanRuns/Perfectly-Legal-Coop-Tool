@@ -6,9 +6,10 @@ import tkinter.messagebox as tkMessageBox
 from sys import maxsize
 from typing import Callable, List, Union
 
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 
 UPLOADS_ENTIRE_WORLD = True
+BUFFER_SIZE = 8192
 
 
 def resource_path(relative_path):
@@ -107,7 +108,7 @@ class PLCTClient:
     def _listen_thread(self) -> None:
         while self._socket is not None:
             try:
-                newrecv = self._socket.recv(1024)
+                newrecv = self._socket.recv(BUFFER_SIZE)
                 self._receive_bytes += newrecv
                 end_index = -1
                 for i in range(len(self._receive_bytes)):
@@ -451,7 +452,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                     }).encode())
                     with open(level_dat_path, "rb") as dat_file:
                         while True:
-                            data = dat_file.read(1024)
+                            data = dat_file.read(BUFFER_SIZE)
                             if not data:
                                 break
                             self._plct_client.send(data)
@@ -489,7 +490,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
             }).encode())
             with open(file_path, "rb") as f:
                 while True:
-                    data = f.read(1024)
+                    data = f.read(BUFFER_SIZE)
                     if not data:
                         break
                     self._plct_client.send(data)

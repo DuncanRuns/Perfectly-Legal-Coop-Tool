@@ -1,8 +1,11 @@
 import os
 import socket
+import sys
 import threading
 import json
 import traceback
+
+BUFFER_SIZE = 8192
 
 
 class PLCTClientInstance:
@@ -20,7 +23,7 @@ class PLCTClientInstance:
     def _listen_thread(self):
         while self._server is not None:
             try:
-                newrecv = self._socket.recv(1024)
+                newrecv = self._socket.recv(BUFFER_SIZE)
                 self._receive_bytes += newrecv
                 end_index = -1
                 for i in range(len(self._receive_bytes)):
@@ -43,6 +46,7 @@ class PLCTClientInstance:
 
     def _download_file(self, size: int, name: str, dir: str) -> None:
         print("Downloading file " + name + "...", end="")
+        sys.stdout.flush()
         dir_path = os.path.join("upload", dir).replace("\\", "/")
         if not os.path.isdir(dir_path):
             os.makedirs(dir_path)
@@ -52,14 +56,14 @@ class PLCTClientInstance:
             if len(self._receive_bytes) > 0:
                 newrecv = self._receive_bytes
                 self._receive_bytes = b''
-                if bytes_left < 1024:
+                if bytes_left < BUFFER_SIZE:
                     self._receive_bytes = newrecv[bytes_left:]
                     newrecv = newrecv[:bytes_left]
                 bytes_left -= len(newrecv)
                 f.write(newrecv)
             while bytes_left > 0:
-                newrecv = self._socket.recv(min(bytes_left, 1024))
-                if bytes_left < 1024:
+                newrecv = self._socket.recv(min(bytes_left, BUFFER_SIZE))
+                if bytes_left < BUFFER_SIZE:
                     self._receive_bytes = newrecv[bytes_left:]
                     newrecv = newrecv[:bytes_left]
                 bytes_left -= len(newrecv)
@@ -73,13 +77,13 @@ class PLCTClientInstance:
         if len(self._receive_bytes) > 0:
             newrecv = self._receive_bytes
             self._receive_bytes = b''
-            if bytes_left < 1024:
+            if bytes_left < BUFFER_SIZE:
                 self._receive_bytes = newrecv[bytes_left:]
                 newrecv = newrecv[:bytes_left]
             bytes_left -= len(newrecv)
         while bytes_left > 0:
-            newrecv = self._socket.recv(min(bytes_left, 1024))
-            if bytes_left < 1024:
+            newrecv = self._socket.recv(min(bytes_left, BUFFER_SIZE))
+            if bytes_left < BUFFER_SIZE:
                 self._receive_bytes = newrecv[bytes_left:]
                 newrecv = newrecv[:bytes_left]
             bytes_left -= len(newrecv)
