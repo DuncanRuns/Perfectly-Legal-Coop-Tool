@@ -311,6 +311,9 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
             save_frame, text="Undo Changes", command=self._reload_original_settings)
         self._undo_button.grid(row=0, column=1, padx=5)
 
+        ttk.Label(
+            main_frame, text=f"PLCT v{VERSION} by Duncan", font=("Arial", 6)).grid(row=200, columnspan=50, padx=2, pady=2)
+
     def _init_connection_widgets(self, parent) -> None:
         outer_connection_frame = RetractableFrame(parent, text="Connection")
         outer_connection_frame.grid(row=0, column=0, padx=5, pady=5)
