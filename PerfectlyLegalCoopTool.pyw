@@ -6,7 +6,7 @@ import tkinter.messagebox as tkMessageBox
 from sys import maxsize
 from typing import Callable, List, Union
 
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 UPLOADS_ENTIRE_WORLD = True
 BUFFER_SIZE = 8192
@@ -277,6 +277,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._clipboard_password_entry: ttk.Entry
         self._upload_password_entry: ttk.Entry
         self._save_button: ttk.Button
+        self._upload_button: ttk.Button
 
         # Setup
         self._init_widgets()
@@ -398,8 +399,9 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         button_frame = ttk.Frame(upload_frame)
         button_frame.grid(row=2, column=0, padx=5, pady=5)
 
-        ttk.Button(button_frame, text="Upload Latest World",
-                   command=self._upload_latest_button).grid(row=0, column=0, sticky="w")
+        self._upload_button = ttk.Button(button_frame, text="Upload Latest World",
+                                         command=self._upload_latest_button, width=18)
+        self._upload_button.grid(row=0, column=0, sticky="w")
 
         ttk.Button(button_frame, text="Test",
                    command=self._test_latest_button, width=4).grid(row=0, column=1, sticky="w")
@@ -441,6 +443,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
     def _upload_latest_world(self) -> None:
         self._uploading = True
         try:
+            self._upload_button.config(text="Uploading...")
             if self._plct_client.get_status() == "connected" and self._instances_folder is not None and self._instances_folder != "":
                 world_path = get_latest_world_from_instances(
                     self._instances_folder)
@@ -481,6 +484,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                 "PLCT: Upload Latest World", "Failed to upload world:\n" + traceback.format_exc())
             print("Failed")
         self._uploading = False
+        self._upload_button.config(text="Upload Latest World")
 
     def _upload_entire_world(self, world_path) -> None:
         def send_file(file_path, dir):
