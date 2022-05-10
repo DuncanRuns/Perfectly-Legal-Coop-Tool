@@ -6,7 +6,7 @@ import tkinter.messagebox as tkMessageBox
 from sys import maxsize
 from typing import Callable, List, Union
 
-VERSION = "1.0.2"
+VERSION = "1.0.3"
 
 UPLOADS_ENTIRE_WORLD = True
 BUFFER_SIZE = 8192
@@ -128,6 +128,8 @@ class PLCTClient:
         try:
             if pack["type"] == "copy":
                 self._app.set_clipboard(pack["copymsg"])
+            elif pack["type"] == "end":
+                self.disconnect()
         except:
             print("Pack Error:")
             traceback.print_exc()
