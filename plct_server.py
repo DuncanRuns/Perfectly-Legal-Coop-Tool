@@ -1,4 +1,4 @@
-import asyncio, os, signal, socket, sys, threading, json, traceback
+import os, socket, sys, threading, json, traceback
 
 BUFFER_SIZE = 8192
 
@@ -117,6 +117,7 @@ class PLCTClientInstance:
 
     def close(self) -> None:
         try:
+            self.send(json.dumps({"type": "end"}).encode())
             self._server.remove_client(self)
             self._server = None
             self._socket.close()
@@ -190,7 +191,7 @@ class PLCTServer:
     close = end = kill = stop
 
 
-async def main():
+def main():
     if os.path.isfile("plct_server_settings.json"):
         with open("plct_server_settings.json", "r") as settings_file:
             settings = json.load(settings_file)
@@ -200,22 +201,12 @@ async def main():
     s = PLCTServer(settings)
     s.start()
 
-    # Async stuff for ending thanks to MiniaczQ: https://github.com/MiniaczQ/CoopTimer/blob/main/server/main.py
-
-    stop_event = asyncio.Event()
-
-    def handle_interrupt(_sig, _frame):
-        stop_event.set()
-
-    signal.signal(signal.SIGTERM, handle_interrupt)
-    signal.signal(signal.SIGINT, handle_interrupt)
-
-    print("Ctrl+C to exit.")
-
-    await stop_event.wait()
+    while input("Type \"end\", \"stop\", \"close\", or \"kill\" to end.\n") not in ["end", "stop", "kill", "close"]:
+        pass
 
     print("Ending...")
     s.stop()
 
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
