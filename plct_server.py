@@ -118,6 +118,10 @@ class PLCTClientInstance:
     def close(self) -> None:
         try:
             self.send(json.dumps({"type": "end"}).encode())
+            self._socket.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
+        try:
             self._server.remove_client(self)
             self._server = None
             self._socket.close()
@@ -168,6 +172,7 @@ class PLCTServer:
                 client = PLCTClientInstance(client_sock, addr, self)
                 self._clients.append(client)
                 print("Connected: " + str(addr))
+                print(self._clients)
                 client_sock.send(self._get_clipboard_pack())
             except:
                 pass
@@ -186,7 +191,10 @@ class PLCTServer:
     def stop(self) -> None:
         for c in self._clients:
             c.close()
-        self._socket.shutdown(socket.SHUT_RDWR)
+        try:
+            self._socket.shutdown(socket.SHUT_RDWR)
+        except:
+            pass
         self._socket.close()
         self._socket = None
     close = end = kill = stop
