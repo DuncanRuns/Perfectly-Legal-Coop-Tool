@@ -186,6 +186,7 @@ class PLCTServer:
     def stop(self) -> None:
         for c in self._clients:
             c.close()
+        self._socket.shutdown(socket.SHUT_RDWR)
         self._socket.close()
         self._socket = None
     close = end = kill = stop
