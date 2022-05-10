@@ -172,7 +172,6 @@ class PLCTServer:
                 client = PLCTClientInstance(client_sock, addr, self)
                 self._clients.append(client)
                 print("Connected: " + str(addr))
-                print(self._clients)
                 client_sock.send(self._get_clipboard_pack())
             except:
                 pass
