@@ -6,7 +6,7 @@ import tkinter.messagebox as tkMessageBox
 from sys import maxsize
 from typing import Callable, List, Union
 
-VERSION = "1.0.3"
+VERSION = "1.0.4"
 
 UPLOADS_ENTIRE_WORLD = True
 BUFFER_SIZE = 8192
@@ -186,10 +186,12 @@ class PLCTClient:
 class RetractableFrame(ttk.LabelFrame):
     def __init__(self, master, text) -> None:
         ttk.LabelFrame.__init__(self, master=master, text=text)
+        self._text = text
         self.inner_frame = ttk.Frame(self)
         self._is_out = True
         self.inner_frame.grid(row=0, column=0)
-        self._filler_widget = ttk.Label(self, text=">")
+        self._filler_widget = ttk.Label(
+            self, text="Click to expand", foreground="#aaaaaa")
         self.bind("<Button 1>", self._on_click)
         self._filler_widget.bind("<Button 1>", self._on_click)
 
@@ -207,7 +209,7 @@ class RetractableFrame(ttk.LabelFrame):
     def retract(self) -> None:
         self._is_out = False
         self.inner_frame.grid_remove()
-        self._filler_widget.grid(row=0, column=0, padx=5)
+        self._filler_widget.grid(row=0, column=0, padx=5, pady=5)
 
 
 class IntEntry(ttk.Entry):
@@ -261,6 +263,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._settings_path = settings_path
         self._original_settings = settings.copy()
         self._uploading = False
+        self._saveable = False
 
         # Tk Variables
         self._receive_clipboard_var = tk.BooleanVar(
@@ -533,6 +536,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._undo_button.config(state="disabled")
         self._clipboard_password_entry.config(
             state=("enabled" if self._send_clipboard_var.get() else "disabled"))
+        self._saveable = False
 
     def _loop(self) -> None:
         self.after(50, self._loop)
@@ -566,8 +570,14 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
             print("Received clipboard.")
 
     def _exit(self, *args) -> None:
-        self._plct_client.disconnect()
-        self.destroy()
+        ans = False
+        if self._saveable:
+            ans = tkMessageBox.askyesnocancel("PLCT: Exit", "Save settings?")
+        if ans is not None:
+            if ans:
+                self._save()
+            self._plct_client.disconnect()
+            self.destroy()
 
     def _on_send_clipboard_button(self, *args) -> None:
         self._clipboard_password_entry.config(
@@ -577,9 +587,11 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
     def _set_saveable(self, *args) -> None:
         self._save_button.config(state="enabled")
         self._undo_button.config(state="enabled")
+        self._saveable = True
         return True
 
     def _save(self) -> None:
+        print("Saving...")
         try:
             new_settings = {
                 "address": self._address_entry.get(),
@@ -642,15 +654,17 @@ if __name__ == "__main__":
     try:
         main()
     except:
+        import webbrowser, os, time, traceback
+        error = traceback.format_exc()
+        print(error)
         ans = tkMessageBox.askyesno(
             "PLCT Error", "An error has occured running PLCT,\ncreate error file and open?")
         if ans:
-            import webbrowser, os, time, traceback
             if not os.path.isdir("crashes"):
                 os.mkdir("crashes")
             name = str(time.time()) + ".txt"
             f = open("crashes/" + name, "w+")
-            f.write(traceback.format_exc())
+            f.write(error)
             f.close()
             webbrowser.open(os.path.abspath(
                 os.path.join(os.getcwd(), "crashes", name)))
