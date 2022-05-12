@@ -1,7 +1,8 @@
 # Perfectly Legal Coop Tool
 Minecraft Speedrunning Coop Tool to share a clipboard for the use of [Ninjabrain Bot](https://github.com/Ninjabrain1/Ninjabrain-Bot) and a world upload compatible with a [HiveLoad](https://github.com/DuncanRuns/HiveLoad) server.
 
-![image](https://user-images.githubusercontent.com/59705125/167260060-c169e018-09d3-4a9b-9066-4e1a36c5e00a.png)
+![image](https://user-images.githubusercontent.com/59705125/168005385-10b7f4d9-6a3b-43ce-8387-d95c49bbf4c7.png)
+
 
 ## Features
 
