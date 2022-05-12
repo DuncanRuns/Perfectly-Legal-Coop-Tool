@@ -1,4 +1,4 @@
-import clipboard, os, json, socket, threading, traceback, time, re, ttkthemes
+import clipboard, os, json, socket, threading, traceback, time, re, ttkthemes, shutil
 import tkinter as tk
 from tkinter import ttk
 import tkinter.filedialog as tkFileDialog
@@ -6,7 +6,7 @@ import tkinter.messagebox as tkMessageBox
 from sys import maxsize
 from typing import Callable, List, Union
 
-VERSION = "1.0.4"
+VERSION = "1.0.5"
 
 UPLOADS_ENTIRE_WORLD = True
 BUFFER_SIZE = 8192
@@ -469,7 +469,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                             self._plct_client.send(data)
                         dat_file.close()
                 else:
-                    self._upload_entire_world(world_path)
+                    self._archive_upload_world(world_path)
                 self._plct_client.send(json.dumps({
                     "type": "uploaddone",
                     "password": self._upload_password_entry.get()
@@ -491,22 +491,32 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._uploading = False
         self._upload_button.config(text="Upload Latest World")
 
+    def send_file(self, file_path: str, dir: str) -> None:
+        self._plct_client.send(json.dumps({
+            "type": "upload",
+            "password": self._upload_password_entry.get(),
+            "dir": dir.replace("\\", "/"),
+            "size": os.path.getsize(file_path),
+            "name": os.path.split(file_path.replace("\\", "/"))[-1].strip("/")
+        }).encode())
+        with open(file_path, "rb") as f:
+            while True:
+                data = f.read(BUFFER_SIZE)
+                if not data:
+                    break
+                self._plct_client.send(data)
+            f.close()
+
+    # New World Upload
+    def _archive_upload_world(self, world_path) -> None:
+        world_name = os.path.split(world_path)[-1]
+        zip_name = world_name + ".zip"
+        shutil.make_archive(world_name, "zip", world_path)
+        self.send_file(os.path.join(os.getcwd(), zip_name), "")
+        os.remove(zip_name)
+
+    # Old World Upload
     def _upload_entire_world(self, world_path) -> None:
-        def send_file(file_path, dir):
-            self._plct_client.send(json.dumps({
-                "type": "upload",
-                "password": self._upload_password_entry.get(),
-                "dir": dir.replace("\\", "/"),
-                "size": os.path.getsize(file_path),
-                "name": os.path.split(file_path.replace("\\", "/"))[-1].strip("/")
-            }).encode())
-            with open(file_path, "rb") as f:
-                while True:
-                    data = f.read(BUFFER_SIZE)
-                    if not data:
-                        break
-                    self._plct_client.send(data)
-                f.close()
         world_name = os.path.split(
             world_path.replace("\\", "/"))[-1].strip("/")
 
@@ -515,13 +525,13 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                              "playerdata", "poi", "region", "stats"]
 
         for file_name in files_to_upload:
-            send_file(os.path.join(world_path, file_name), world_name)
+            self.send_file(os.path.join(world_path, file_name), world_name)
         for folder_name in folders_to_upload:
             folder_path = os.path.join(world_path, folder_name)
             if os.path.isdir(folder_path):
                 for file_name in os.listdir(folder_path):
-                    send_file(os.path.join(folder_path, file_name),
-                              os.path.join(world_name, folder_name))
+                    self.send_file(os.path.join(folder_path, file_name),
+                                   os.path.join(world_name, folder_name))
 
     def _test_latest_button(self, *args) -> None:
         if self._instances_folder is not None and self._instances_folder != "":
