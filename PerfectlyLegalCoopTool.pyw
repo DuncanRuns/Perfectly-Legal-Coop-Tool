@@ -1,10 +1,28 @@
-import clipboard, os, json, socket, threading, traceback, time, re, ttkthemes, shutil
-import tkinter as tk
-from tkinter import ttk
-import tkinter.filedialog as tkFileDialog
-import tkinter.messagebox as tkMessageBox
-from sys import maxsize
-from typing import Callable, List, Union
+try:
+    import clipboard, os, json, socket, threading, traceback, time, re, ttkthemes, shutil
+    import tkinter as tk
+    from tkinter import ttk
+    import tkinter.filedialog as tkFileDialog
+    import tkinter.messagebox as tkMessageBox
+    from sys import maxsize
+    from typing import Callable, List, Union
+except:
+    dependencies = ["clipboard", "ttkthemes"]
+    import os, sys
+    import tkinter.messagebox as tkMessageBox
+    import tkinter as tk
+    main = tk.Tk()
+    tk.Label(main, text="Installing dependencies...").grid(
+        row=0, column=0, padx=5, pady=5)
+    main.update()
+    executable = sys.executable
+    for dependency in dependencies:
+        command = f"{executable} -m pip install {dependency}"
+        os.system(command)
+    main.withdraw()
+    tkMessageBox.showinfo(
+        "PLCT: Setup", "Dependencies were installed, please run " + os.path.split(__file__)[-1] + " again.")
+
 
 VERSION = "1.0.5"
 
