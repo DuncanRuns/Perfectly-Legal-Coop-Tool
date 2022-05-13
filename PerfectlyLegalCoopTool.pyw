@@ -24,7 +24,7 @@ except:
         "PLCT: Setup", "Dependencies were installed, please run " + os.path.split(__file__)[-1] + " again.")
 
 
-VERSION = "1.0.5"
+VERSION = "1.1.0"
 
 UPLOADS_ENTIRE_WORLD = True
 BUFFER_SIZE = 8192
@@ -262,6 +262,40 @@ class IntEntry(ttk.Entry):
             return False
 
 
+class AngleBox(tk.Toplevel):
+    def __init__(self, app):
+        tk.Toplevel.__init__(self, app)
+        self.title("PLCT: Angle")
+        self.resizable(0, 0)
+        self.attributes("-topmost", True)
+
+        self._var = tk.StringVar(app, "0.00")
+        self._app: PerfectlyLegalCoopTool = app
+        # ttk.Label justify doesn't work smh
+        tk.Label(self, textvariable=self._var, font=("Arial", 50), width=6, justify=tk.CENTER).grid(
+            row=0, column=0, padx=5, pady=5, sticky="we")
+        self.after(0, self._loop)
+
+    def _get_angle_str(self, angle: float):
+        while angle > 180:
+            angle -= 360
+        while angle < -180:
+            angle += 360
+
+        return "%0.2f" % angle
+
+    def _loop(self, *args):
+        self.after(50, self._loop)
+        clip = self._app._clipboard_var.get()
+        if clip != "" and not "not" in clip.lower():
+            try:
+                self._var.set(self._get_angle_str(float(clip.split()[-2])))
+            except:
+                pass
+        else:
+            self._var.set("0.00")
+
+
 class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
     def __init__(self, settings: dict = {}, settings_path: str = None) -> None:
         ttkthemes.ThemedTk.__init__(self, theme="breeze".lower())
@@ -301,6 +335,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._upload_password_entry: ttk.Entry
         self._save_button: ttk.Button
         self._upload_button: ttk.Button
+        self.angle_box: tk.Toplevel = None
 
         # Setup
         self._init_widgets()
@@ -384,11 +419,14 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         tk.Label(current_clipboard_frame, textvariable=self._clipboard_var, width=25).grid(
             row=1, column=0)
 
+        ttk.Button(current_clipboard_frame,
+                   text="Show Angle Box", command=self._show_angle_box).grid(row=2, column=0)
+
         ttk.Separator(clipboard_frame, orient=tk.HORIZONTAL).grid(
-            row=2, column=0, columnspan=5, pady=5, sticky="we")
+            row=100, column=0, columnspan=5, pady=5, sticky="we")
 
         send_frame = ttk.Frame(clipboard_frame)
-        send_frame.grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        send_frame.grid(row=101, column=0, padx=5, pady=5, sticky="w")
 
         ttk.Checkbutton(send_frame, text="Send Clipboard",
                         variable=self._send_clipboard_var, command=self._on_send_clipboard_button).grid(row=0, column=0)
@@ -437,6 +475,14 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._upload_password_entry = ttk.Entry(
             password_frame, validate='key', validatecommand=self._set_saveable, width=14)
         self._upload_password_entry.grid(row=0, column=1)
+
+    def _show_angle_box(self, *args) -> None:
+        if self.angle_box is None:
+            self.angle_box = AngleBox(self)
+        elif not self.angle_box.winfo_exists():
+            self.angle_box = None
+            self.angle_box = AngleBox(self)
+        self.angle_box.focus()
 
     def _set_instances_path_button(self, *args) -> None:
         ans = ask_for_directory(self._instances_folder)
