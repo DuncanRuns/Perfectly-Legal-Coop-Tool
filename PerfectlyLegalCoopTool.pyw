@@ -8,9 +8,10 @@ try:
     from typing import Callable, List, Union
 except:
     dependencies = ["clipboard", "ttkthemes"]
-    import os, sys
+    import os, sys, traceback
     import tkinter.messagebox as tkMessageBox
     import tkinter as tk
+    traceback.print_exc()
     main = tk.Tk()
     tk.Label(main, text="Installing dependencies...").grid(
         row=0, column=0, padx=5, pady=5)
