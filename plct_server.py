@@ -6,7 +6,7 @@ BUFFER_SIZE = 8192
 class PLCTClientInstance:
     def __init__(self, sock, addr, server) -> None:
         self._socket: socket.socket = sock
-        self._server = server
+        self._server: PLCTServer = server
         self._addr = addr
         self._receive_bytes = b''
         self._send_lock = threading.Lock()
@@ -111,6 +111,7 @@ class PLCTClientInstance:
                 if self._server.is_upload_pass(password):
                     print("Created done file.")
                     open("upload/done", "w+").close()
+                    self._server.clear_clipboard()
         except:
             traceback.print_exc()
             raise
@@ -154,6 +155,9 @@ class PLCTServer:
             self._clipboard = message
             print("Clipboard updated: " + message)
             self._send_to_all(self._get_clipboard_pack())
+
+    def clear_clipboard(self) -> None:
+        self.set_clipboard("", self._clipboard_password)
 
     def _get_clipboard_pack(self) -> bytes:
         return json.dumps({
