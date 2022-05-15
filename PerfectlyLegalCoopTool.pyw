@@ -25,7 +25,7 @@ except:
         "PLCT: Setup", "Dependencies were installed, please run " + os.path.split(__file__)[-1] + " again.")
 
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 
 UPLOADS_ENTIRE_WORLD = True
 BUFFER_SIZE = 8192
@@ -123,6 +123,8 @@ class PLCTClient:
         self._send_lock = threading.Lock()
         self._socket: socket.socket = None
         self._connecting = False
+        self._port = None
+        self._address = None
 
     def _listen_thread(self) -> None:
         while self._socket is not None:
@@ -153,23 +155,33 @@ class PLCTClient:
             print("Pack Error:")
             traceback.print_exc()
 
-    def connect(self, address: str, port: int) -> None:
+    def connect(self, address: str = None, port: int = None, return_callback: Callable = None) -> bool:
+        self._connecting = True
+        if address:
+            self._address = address
+        if port:
+            self._port = port
+        assert self._address is not None and self._port is not None
         self.disconnect()
         time.sleep(0.05)  # Magic number :(
         print("Attempting new connection...")
         self._send_lock = threading.Lock()
-        self._connecting = True
+        success = False
         try:
             s = socket.socket()
-            s.connect((address, port))
+            s.connect((self._address, self._port))
             self._socket = s
             print("Success!")
+            success = True
         except:
             print("Failed.")
             self.disconnect()
         self._receive_bytes = b''
         threading.Thread(target=self._listen_thread).start()
         self._connecting = False
+        if return_callback is not None:
+            return_callback(success)
+        return success
 
     def disconnect(self) -> None:
         try:
@@ -317,6 +329,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._original_settings = settings.copy()
         self._uploading = False
         self._saveable = False
+        self._intentional_disconnect = True
 
         # Tk Variables
         self._receive_clipboard_var = tk.BooleanVar(
@@ -630,12 +643,19 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                     "copymsg": new_paste
                 }).encode())
 
+        if not self._intentional_disconnect and self._plct_client.get_status() == "disconnected":
+            threading.Thread(target=self._plct_client.connect).start()
+
     def _connect_button(self, *args) -> None:
         threading.Thread(target=self._plct_client.connect, args=(
-            self._address_entry.get(), self._port_entry.get_int())).start()
+            self._address_entry.get(), self._port_entry.get_int(), self._on_first_connect)).start()
 
     def _disconnect_button(self, *args) -> None:
+        self._intentional_disconnect = True
         self._plct_client.disconnect()
+
+    def _on_first_connect(self, success: bool) -> None:
+        self._intentional_disconnect = not success
 
     def set_clipboard(self, message) -> None:
         self._clipboard_var.set(message)
@@ -651,6 +671,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         if ans is not None:
             if ans:
                 self._save()
+            self._intentional_disconnect = True
             self._plct_client.disconnect()
             self.destroy()
 
