@@ -7,25 +7,34 @@ try:
     from sys import maxsize
     from typing import Callable, List, Union
 except:
-    dependencies = ["clipboard", "ttkthemes"]
+    dependencies = "pypiwin32, pyperclip, clipboard, ttkthemes".split(
+        ", ")
     import os, sys, traceback
     import tkinter.messagebox as tkMessageBox
     import tkinter as tk
-    traceback.print_exc()
+    error = traceback.format_exc()
+    print(error)
     main = tk.Tk()
     tk.Label(main, text="Installing dependencies...").grid(
         row=0, column=0, padx=5, pady=5)
     main.update()
-    executable = sys.executable
     for dependency in dependencies:
-        command = f"{executable} -m pip install {dependency}"
+        command = f"{sys.executable} -m pip install {dependency}"
+        print(command)
         os.system(command)
+    if os.path.isfile("plct_settings.json"):
+        tkMessageBox.showinfo(
+            "PLCT: Setup", "It appears dependency installation was attempted more than once. Import Error:\n" + error)
+    else:
+        f = open("plct_settings.json", "w+")
+        f.write("{}")
+        f.close()
+        tkMessageBox.showinfo(
+            "PLCT: Setup", "Dependencies were installed, please run " + os.path.split(__file__)[-1] + " again.")
     main.withdraw()
-    tkMessageBox.showinfo(
-        "PLCT: Setup", "Dependencies were installed, please run " + os.path.split(__file__)[-1] + " again.")
 
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 
 UPLOADS_ENTIRE_WORLD = True
 BUFFER_SIZE = 8192
@@ -119,7 +128,7 @@ def get_latest_world_from_instances(instances_path: str) -> str:
 
 class PLCTClient:
     def __init__(self, app) -> None:
-        self._app = app
+        self._app: PerfectlyLegalCoopTool = app
         self._send_lock = threading.Lock()
         self._socket: socket.socket = None
         self._connecting = False
@@ -147,10 +156,13 @@ class PLCTClient:
 
     def _on_pack(self, pack: str) -> None:
         try:
-            if pack["type"] == "copy":
+            pack_type = pack["type"]
+            if pack_type == "copy":
                 self._app.set_clipboard(pack["copymsg"])
-            elif pack["type"] == "end":
+            elif pack_type == "end":
                 self.disconnect()
+            elif pack_type == "pong":
+                self._app._got_pong(True)
         except:
             print("Pack Error:")
             traceback.print_exc()
@@ -186,16 +198,22 @@ class PLCTClient:
     def disconnect(self) -> None:
         try:
             if self._socket is not None:
-                self.send(json.dumps({"type": "end"}).encode())
+                self.send_with_lock(json.dumps({"type": "end"}).encode())
                 self._socket.close()
         except:
             pass
         self._socket = None
 
-    def send(self, b: bytes) -> None:
+    def send_with_lock(self, b: bytes) -> None:
         with self._send_lock:
-            if self._socket is not None:
-                self._socket.sendall(b)
+            self.send(b)
+
+    def send(self, b: bytes) -> None:
+        if self._socket is not None:
+            self._socket.sendall(b)
+
+    def get_send_lock(self) -> threading.Lock:
+        return self._send_lock
 
     def get_status(self) -> str:
         if self._socket is not None:
@@ -330,6 +348,9 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._uploading = False
         self._saveable = False
         self._intentional_disconnect = True
+        self._ctries = 0
+        self._last_ping = 0
+        self._last_pong = 0
 
         # Tk Variables
         self._receive_clipboard_var = tk.BooleanVar(
@@ -532,7 +553,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                     self._instances_folder)
                 if not UPLOADS_ENTIRE_WORLD:
                     level_dat_path = os.path.join(world_path, "level.dat")
-                    self._plct_client.send(json.dumps({
+                    self._plct_client.send_with_lock(json.dumps({
                         "type": "upload",
                         "password": self._upload_password_entry.get(),
                         "name": "level.dat",
@@ -544,11 +565,11 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                             data = dat_file.read(BUFFER_SIZE)
                             if not data:
                                 break
-                            self._plct_client.send(data)
+                            self._plct_client.send_with_lock(data)
                         dat_file.close()
                 else:
                     self._archive_upload_world(world_path)
-                self._plct_client.send(json.dumps({
+                self._plct_client.send_with_lock(json.dumps({
                     "type": "uploaddone",
                     "password": self._upload_password_entry.get()
                 }).encode())
@@ -570,7 +591,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._upload_button.config(text="Upload Latest World")
 
     def send_file(self, file_path: str, dir: str) -> None:
-        self._plct_client.send(json.dumps({
+        self._plct_client.send_with_lock(json.dumps({
             "type": "upload",
             "password": self._upload_password_entry.get(),
             "dir": dir.replace("\\", "/"),
@@ -578,11 +599,14 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
             "name": os.path.split(file_path.replace("\\", "/"))[-1].strip("/")
         }).encode())
         with open(file_path, "rb") as f:
-            while True:
-                data = f.read(BUFFER_SIZE)
-                if not data:
-                    break
-                self._plct_client.send(data)
+            with self._plct_client.get_send_lock():
+                while True:
+                    data = f.read(BUFFER_SIZE)
+                    if not data:
+                        break
+                    self._plct_client.send(data)
+                # As uploads can take a while, update last pong as to not needlessly terminate the socket.
+                self._last_pong = time.time()
             f.close()
 
     # New World Upload
@@ -627,7 +651,6 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._saveable = False
 
     def _loop(self) -> None:
-        self.after(50, self._loop)
         self._connection_status_var.set(self._plct_client.get_status_display())
         if not self._plct_client.get_status() == "connected":
             self._clipboard_var.set("(Not Connected)")
@@ -637,14 +660,40 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
             self._last_paste = new_paste
             if self._send_clipboard_var.get() and self._clipboard_var.get() != new_paste and is_pos_command(new_paste):
                 print("Sending clipboard...")
-                self._plct_client.send(json.dumps({
+                self._plct_client.send_with_lock(json.dumps({
                     "type": "copy",
                     "password": self._clipboard_password_entry.get(),
                     "copymsg": new_paste
                 }).encode())
 
         if not self._intentional_disconnect and self._plct_client.get_status() == "disconnected":
-            threading.Thread(target=self._plct_client.connect).start()
+            if self._ctries < 5:
+                threading.Thread(target=self._plct_client.connect,
+                                 args=(None, None, self._got_pong)).start()
+                self._ctries += 1
+            else:
+                print("Failed to reconnect after 5 tries, giving up.")
+                self._intentional_disconnect = True
+                tkMessageBox.showwarning(
+                    "PLCT: Disconnected", "You have disconnected from the server and could not reconnect after 5 attempts.")
+                self._ctries = 0
+
+        if self._plct_client.get_status() == "connected":
+
+            if abs(time.time() - self._last_ping) > 10:
+                self._plct_client.send_with_lock(
+                    json.dumps({"type": "ping"}).encode())
+                self._last_ping = time.time()
+
+            stopped_responding = False
+            with self._plct_client.get_send_lock():
+                if abs(time.time() - self._last_pong) > 20:
+                    print("Server stopped responding, reconnecting...")
+                    stopped_responding = True
+            if stopped_responding:
+                self._plct_client.disconnect()
+
+        self.after(50, self._loop)
 
     def _connect_button(self, *args) -> None:
         threading.Thread(target=self._plct_client.connect, args=(
@@ -656,6 +705,13 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
 
     def _on_first_connect(self, success: bool) -> None:
         self._intentional_disconnect = not success
+        self._last_ping = time.time()
+        self._got_pong(success)
+
+    def _got_pong(self, success: bool) -> None:
+        if success:
+            self._last_pong = time.time()
+            self._ctries = 0
 
     def set_clipboard(self, message) -> None:
         self._clipboard_var.set(message)

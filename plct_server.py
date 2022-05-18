@@ -112,13 +112,17 @@ class PLCTClientInstance:
                     print("Created done file.")
                     open("upload/done", "w+").close()
                     self._server.clear_clipboard()
+
+            elif pack_type == "ping":
+                self.send_with_lock(json.dumps({"type": "pong"}).encode())
+
         except:
             traceback.print_exc()
             raise
 
     def close(self) -> None:
         try:
-            self.send(json.dumps({"type": "end"}).encode())
+            self.send_with_lock(json.dumps({"type": "end"}).encode())
             self._socket.shutdown(socket.SHUT_RDWR)
         except:
             pass
@@ -129,8 +133,12 @@ class PLCTClientInstance:
         except:
             pass
 
-    def send(self, b: bytes) -> None:
+    def send_with_lock(self, b: bytes) -> None:
         with self._send_lock:
+            self.send(b)
+
+    def send(self, b: bytes) -> None:
+        if self._server is not None:
             self._socket.sendall(b)
 
 
@@ -167,7 +175,7 @@ class PLCTServer:
 
     def _send_to_all(self, b: bytes) -> None:
         for c in self._clients:
-            c.send(b)
+            c.send_with_lock(b)
 
     def _accept_thread(self) -> None:
         while self._socket is not None:
