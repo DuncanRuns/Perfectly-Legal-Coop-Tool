@@ -162,7 +162,7 @@ class PLCTClient:
             elif pack_type == "end":
                 self.disconnect()
             elif pack_type == "pong":
-                self._app._got_pong(True)
+                self._app._got_pong()
         except:
             print("Pack Error:")
             traceback.print_exc()
@@ -386,7 +386,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
 
         self._reset_states()
 
-        self.after(0, self._loop)  # Check clipboard in loop
+        self.after(0, self._loop)
 
     def _init_widgets(self) -> None:
         main_frame = ttk.Frame()
@@ -606,7 +606,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                         break
                     self._plct_client.send(data)
                 # As uploads can take a while, update last pong as to not needlessly terminate the socket.
-                self._last_pong = time.time()
+                self._got_pong()
             f.close()
 
     # New World Upload
@@ -655,6 +655,11 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         if not self._plct_client.get_status() == "connected":
             self._clipboard_var.set("(Not Connected)")
 
+        threading.Thread(target=self._inner_loop).start()
+
+    # Anything that can take more than a ms or two or uses a lock should go in here.
+    # Prevents tk from appearing crashed while send lock is in use.
+    def _inner_loop(self) -> None:
         new_paste = clipboard.paste()
         if new_paste != self._last_paste:
             self._last_paste = new_paste
@@ -708,7 +713,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._last_ping = time.time()
         self._got_pong(success)
 
-    def _got_pong(self, success: bool) -> None:
+    def _got_pong(self, success: bool = True) -> None:
         if success:
             self._last_pong = time.time()
             self._ctries = 0
