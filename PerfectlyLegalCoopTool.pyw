@@ -1,10 +1,11 @@
 try:
-    import clipboard, os, json, socket, threading, traceback, time, re, ttkthemes, shutil
+    import sys, clipboard, os, json, socket, threading, traceback, time, re, ttkthemes, shutil
+    if 'win' in sys.platform:
+        import subprocess, win32process, win32gui
     import tkinter as tk
     from tkinter import ttk
     import tkinter.filedialog as tkFileDialog
     import tkinter.messagebox as tkMessageBox
-    from sys import maxsize
     from typing import Callable, List, Union
 except:
     dependencies = "pypiwin32, pyperclip, clipboard, ttkthemes".split(
@@ -34,10 +35,10 @@ except:
     main.withdraw()
 
 
-VERSION = "1.1.2"
+VERSION = "1.2.0"
 
-UPLOADS_ENTIRE_WORLD = True
 BUFFER_SIZE = 8192
+IS_WINDOWS = 'win' in sys.platform
 
 
 def resource_path(relative_path):
@@ -124,6 +125,98 @@ def get_latest_world_from_instances(instances_path: str) -> str:
         return max(get_all_worlds_from_instances(instances_path), key=lambda x: os.path.getmtime(os.path.join(x, "level.dat")))
     except:
         return None
+
+
+if IS_WINDOWS:
+    def take_arg(string: str, ind: int) -> str:
+        """Takes a single argument or word from a string.
+
+        Args:
+            string (str): utf-8 string containing multiple words.
+            ind (int): Starting index of argument.
+
+        Returns:
+            str: The argument at the specified `index` of `string`.
+        """
+        sub = string[ind:]
+        if sub == "":
+            return ""
+        while sub[0] == " ":
+            sub = sub[1:]
+            if sub == "":
+                return ""
+        if sub[0] == '"':
+            scan_ind = 1
+            bsc = 0
+            while scan_ind < len(sub):
+                if sub[scan_ind] == '\\':
+                    bsc += 1
+                elif sub[scan_ind] == '"':
+                    if bsc % 2 == 0:
+                        break
+                    else:
+                        bsc = 0
+                else:
+                    bsc = 0
+                scan_ind += 1
+            if scan_ind == len(sub):
+                raise  # QUOTATION WAS NOT ENDED
+            return sub[1:scan_ind].encode('utf-8').decode('unicode_escape')
+        else:
+            scan_ind = 1
+            while scan_ind < len(sub) and scan_ind:
+                if sub[scan_ind] == " ":
+                    break
+                scan_ind += 1
+            return sub[:scan_ind]
+
+    def get_mc_dir_from_pid(pid: int) -> Union[str, None]:
+        # Thanks to the creator of MoveWorlds-v0.3.ahk (probably specnr)
+        cmd = f"powershell.exe \"$proc = Get-WmiObject Win32_Process -Filter \\\"ProcessId = {str(pid)}\\\";$proc.CommandLine\""
+        p = subprocess.Popen(
+            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.PIPE)
+        response = p.communicate()[0].decode()
+        if "--gameDir" in response:
+            ind = response.index("--gameDir") + 10
+            return take_arg(response, ind).replace("\\", "/")
+        elif "\"-Djava.library.path=" in response:
+            ind = response.index("\"-Djava.library.path=")
+            natives_path = take_arg(response, ind)[20:].replace("\\", "/")
+            return os.path.join(os.path.split(natives_path)[0], ".minecraft").replace("\\", "/")
+
+    def get_pid_from_hwnd(hwnd: int):
+        return win32process.GetWindowThreadProcessId(hwnd)[1]
+
+    def _win_enum_handler(hwnd: int, hwnd_list: List[str]):
+        hwnd_list.insert(0, hwnd)
+
+    def get_all_hwnds() -> List[int]:
+        hwnd_list = []
+        win32gui.EnumWindows(_win_enum_handler, hwnd_list)
+        return hwnd_list
+
+    def get_latest_mc_hwnd() -> Union[int, None]:
+        hwnd = None
+        mc_match = re.compile(r"Minecraft\*? 1\.[1-9]\d*\.[1-9]\d*.*").match
+        for next_hwnd in get_all_hwnds():
+            if mc_match(get_hwnd_title(next_hwnd)):
+                hwnd = next_hwnd
+        return hwnd
+
+    def get_hwnd_title(hwnd: int) -> str:
+        return win32gui.GetWindowText(hwnd)
+
+    def get_latest_instance_from_window() -> Union[str, None]:
+        hwnd = get_latest_mc_hwnd()
+        if hwnd is None:
+            return
+        return os.path.split(get_mc_dir_from_pid(get_pid_from_hwnd(hwnd)))[0].replace("\\", "/")
+
+    def get_latest_world_from_window() -> Union[str, None]:
+        instance = get_latest_instance_from_window()
+        if instance is None:
+            return
+        return max(get_all_worlds_from_instance(instance), key=lambda x: os.path.getmtime(os.path.join(x, "level.dat")))
 
 
 class PLCTClient:
@@ -262,7 +355,7 @@ class RetractableFrame(ttk.LabelFrame):
 
 
 class IntEntry(ttk.Entry):
-    def __init__(self, parent, max=maxsize, on_key_callback: Callable = None):
+    def __init__(self, parent, max=sys.maxsize, on_key_callback: Callable = None):
         self.max = max
         self.parent = parent
         self.on_key_callback = on_key_callback
@@ -357,6 +450,8 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
             self, settings.get("receiveClipboard", False))
         self._send_clipboard_var = tk.BooleanVar(
             self, settings.get("sendClipboard", False))
+        self._use_window_var = tk.BooleanVar(
+            self, settings.get("useWindow", False))
         self._connection_status_var = tk.StringVar(
             self, DISCONNECTED_STR)
         self._instances_folder_var = tk.StringVar(self, self._instances_folder)
@@ -480,20 +575,31 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         upload_frame = outer_upload_frame.inner_frame
         outer_upload_frame.retract()
 
-        path_frame = ttk.Frame(upload_frame)
-        path_frame.grid(row=0, column=0, padx=5, pady=5)
-        ttk.Label(path_frame, text="MultiMC Instances Folder:").grid(
+        ulw_button = ttk.Checkbutton(upload_frame, text="Use Latest Window",
+                                     variable=self._use_window_var, command=self._on_use_window)
+        ulw_button.grid(row=0, column=0, padx=5, pady=5)
+        if not IS_WINDOWS:
+            ulw_button.grid_remove()
+            self._use_window_var.set(False)
+
+        self._path_frame = ttk.Frame(upload_frame)
+        self._path_frame.grid(row=1, column=0, padx=5, pady=5)
+        if self._use_window_var.get():
+            self._path_frame.grid_remove()
+        else:
+            self._path_frame.grid()
+        ttk.Label(self._path_frame, text="MultiMC Instances Folder:").grid(
             row=0, column=0, pady=3, columnspan=2)
-        tk.Label(path_frame, textvariable=self._instances_folder_var, anchor=tk.E, width=15).grid(
+        tk.Label(self._path_frame, textvariable=self._instances_folder_var, anchor=tk.E, width=15).grid(
             row=1, column=1, padx=5, pady=0, sticky="w")
-        ttk.Button(path_frame, text="Set", command=self._set_instances_path_button, width=3).grid(
+        ttk.Button(self._path_frame, text="Set", command=self._set_instances_path_button, width=3).grid(
             row=1, column=0, pady=0, sticky="w")
 
         ttk.Separator(upload_frame, orient=tk.HORIZONTAL).grid(
-            row=1, column=0, columnspan=5, sticky="we", pady=5)
+            row=2, column=0, columnspan=5, sticky="we", pady=5)
 
         button_frame = ttk.Frame(upload_frame)
-        button_frame.grid(row=2, column=0, padx=5, pady=5)
+        button_frame.grid(row=3, column=0, padx=5, pady=5)
 
         self._upload_button = ttk.Button(button_frame, text="Upload Latest World",
                                          command=self._upload_latest_button, width=18)
@@ -503,13 +609,20 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                    command=self._test_latest_button, width=4).grid(row=0, column=1, sticky="w")
 
         password_frame = ttk.Frame(upload_frame)
-        password_frame.grid(row=3, column=0, padx=5, pady=5)
+        password_frame.grid(row=4, column=0, padx=5, pady=5)
 
         ttk.Label(password_frame, text="Upload Password:").grid(
             row=0, column=0)
         self._upload_password_entry = ttk.Entry(
             password_frame, validate='key', validatecommand=self._set_saveable, width=14)
         self._upload_password_entry.grid(row=0, column=1)
+
+    def _on_use_window(self, *args) -> None:
+        if self._use_window_var.get():
+            self._path_frame.grid_remove()
+        else:
+            self._path_frame.grid()
+        self._set_saveable()
 
     def _show_angle_box(self, *args) -> None:
         if self.angle_box is None:
@@ -548,27 +661,13 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._uploading = True
         try:
             self._upload_button.config(text="Uploading...")
-            if self._plct_client.get_status() == "connected" and self._instances_folder is not None and self._instances_folder != "":
-                world_path = get_latest_world_from_instances(
-                    self._instances_folder)
-                if not UPLOADS_ENTIRE_WORLD:
-                    level_dat_path = os.path.join(world_path, "level.dat")
-                    self._plct_client.send_with_lock(json.dumps({
-                        "type": "upload",
-                        "password": self._upload_password_entry.get(),
-                        "name": "level.dat",
-                        "dir": "world",
-                        "size": os.path.getsize(level_dat_path)
-                    }).encode())
-                    with open(level_dat_path, "rb") as dat_file:
-                        while True:
-                            data = dat_file.read(BUFFER_SIZE)
-                            if not data:
-                                break
-                            self._plct_client.send_with_lock(data)
-                        dat_file.close()
+            if self._plct_client.get_status() == "connected" and ((self._instances_folder is not None and self._instances_folder != "") or self._use_window_var.get()):
+                if self._use_window_var.get():
+                    world_path = get_latest_world_from_window()
                 else:
-                    self._archive_upload_world(world_path)
+                    world_path = get_latest_world_from_instances(
+                        self._instances_folder)
+                self._archive_upload_world(world_path)
                 self._plct_client.send_with_lock(json.dumps({
                     "type": "uploaddone",
                     "password": self._upload_password_entry.get()
@@ -578,7 +677,8 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
             else:
                 tkMessageBox.showerror(
                     "PLCT: Upload Latest World", ((
-                        "\nNo instances folder set." if self._instances_folder is None or self._instances_folder == "" else ""
+                        ("\nNo instances folder set." if self._instances_folder is None or self._instances_folder ==
+                         "" else "") if (not self._use_window_var.get()) else ("\nThere are no Minecraft windows currently open." if (get_latest_mc_hwnd() is None) else "")
                     ) + (
                         "" if self._plct_client.get_status(
                         ) == "connected" else "\nNot connected to any server."
@@ -636,12 +736,25 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                                    os.path.join(world_name, folder_name))
 
     def _test_latest_button(self, *args) -> None:
-        if self._instances_folder is not None and self._instances_folder != "":
-            tkMessageBox.showinfo("PLCT: Test Latest World", "Current latest world: " +
-                                  get_latest_world_from_instances(self._instances_folder).replace("\\", "/"))
-        else:
+        try:
+            if (self._instances_folder is not None and self._instances_folder != "") or self._use_window_var.get():
+                if self._use_window_var.get():
+                    latest_world = get_latest_world_from_window()
+                    if latest_world is None:
+                        tkMessageBox.showerror(
+                            "PLCT: Test Latest World", "There are no Minecraft windows currently open.")
+                    else:
+                        tkMessageBox.showinfo("PLCT: Test Latest World", "Current latest world: " +
+                                              latest_world)
+                else:
+                    tkMessageBox.showinfo("PLCT: Test Latest World", "Current latest world: " +
+                                          get_latest_world_from_instances(self._instances_folder).replace("\\", "/"))
+            else:
+                tkMessageBox.showerror(
+                    "PLCT: Test Latest World", "No instances folder set.")
+        except:
             tkMessageBox.showerror(
-                "PLCT: Test Latest World", "No instances folder set.")
+                "PLCT: Upload Latest World", "Failed test:\n" + traceback.format_exc())
 
     def _reset_states(self) -> None:
         self._save_button.config(state="disabled")
@@ -757,7 +870,8 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                 "sendClipboard": self._send_clipboard_var.get(),
                 "clipboardPassword": self._clipboard_password_entry.get(),
                 "instancesFolder": self._instances_folder,
-                "uploadPassword": self._upload_password_entry.get()
+                "uploadPassword": self._upload_password_entry.get(),
+                "useWindow": self._use_window_var.get()
             }
             with open(self._settings_path, "w+") as settings_file:
                 json.dump(new_settings, settings_file, indent=4)
@@ -778,6 +892,8 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
             self._original_settings.get("receiveClipboard", False))
         self._send_clipboard_var.set(
             self._original_settings.get("sendClipboard", False))
+        self._use_window_var.set(
+            self._original_settings.get("useWindow", False))
 
         self._clipboard_password_entry.config(state="enabled")
         self._clipboard_password_entry.delete(0, tk.END)
@@ -793,6 +909,11 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
             "instancesFolder", "")
         self._instances_folder_var.set(".................... Currently Unset" if (
             self._instances_folder is None or self._instances_folder == "") else ".................... " + self._instances_folder)
+
+        if self._use_window_var.get():
+            self._path_frame.grid_remove()
+        else:
+            self._path_frame.grid()
 
         self._reset_states()
 
