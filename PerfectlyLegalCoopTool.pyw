@@ -661,7 +661,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._uploading = True
         try:
             self._upload_button.config(text="Uploading...")
-            if self._plct_client.get_status() == "connected" and ((self._instances_folder is not None and self._instances_folder != "") or self._use_window_var.get()):
+            if self._plct_client.get_status() == "connected" and ((self._instances_folder is not None and self._instances_folder != "") or (self._use_window_var.get() and get_latest_mc_hwnd() is not None)):
                 if self._use_window_var.get():
                     world_path = get_latest_world_from_window()
                 else:
