@@ -184,10 +184,10 @@ if IS_WINDOWS:
             natives_path = take_arg(response, ind)[20:].replace("\\", "/")
             return os.path.join(os.path.split(natives_path)[0], ".minecraft").replace("\\", "/")
 
-    def get_pid_from_hwnd(hwnd: int):
+    def get_pid_from_hwnd(hwnd: int) -> int:
         return win32process.GetWindowThreadProcessId(hwnd)[1]
 
-    def _win_enum_handler(hwnd: int, hwnd_list: List[str]):
+    def _win_enum_handler(hwnd: int, hwnd_list: List[str]) -> None:
         hwnd_list.insert(0, hwnd)
 
     def get_all_hwnds() -> List[int]:
