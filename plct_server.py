@@ -1,6 +1,7 @@
 import os, socket, sys, threading, json, traceback
 
 BUFFER_SIZE = 8192
+DOWNLOAD_EXTENSION = ".hld"
 
 
 class PLCTClientInstance:
@@ -46,8 +47,10 @@ class PLCTClientInstance:
         if not os.path.isdir(dir_path):
             os.makedirs(dir_path)
         file_path = os.path.join(dir_path, name).replace("\\", "/")
+        dl_file_path = os.path.join(
+            dir_path, name + DOWNLOAD_EXTENSION).replace("\\", "/")
         bytes_left = size
-        with open(file_path, "wb") as f:
+        with open(dl_file_path, "wb") as f:
             if len(self._receive_bytes) > 0:
                 newrecv = self._receive_bytes
                 self._receive_bytes = b''
@@ -65,6 +68,9 @@ class PLCTClientInstance:
                 f.write(newrecv)
             f.close()
             print("!")
+        if os.path.isfile(file_path):
+            os.remove(file_path)
+        os.rename(dl_file_path, file_path)
 
     def _fake_download_file(self, size: int) -> None:
         print("Fake Downloading file...")
