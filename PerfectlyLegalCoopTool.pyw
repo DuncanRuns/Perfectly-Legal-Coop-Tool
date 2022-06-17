@@ -35,7 +35,7 @@ except:
     main.withdraw()
 
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 
 BUFFER_SIZE = 8192
 IS_WINDOWS = 'win' in sys.platform
@@ -197,7 +197,8 @@ if IS_WINDOWS:
 
     def get_latest_mc_hwnd() -> Union[int, None]:
         hwnd = None
-        mc_match = re.compile(r"Minecraft\*? 1\.[1-9]\d*\.[1-9]\d*.*").match
+        mc_match = re.compile(
+            r"^Minecraft\*? 1\.[1-9]\d*(\.[1-9]\d*)?( .*)?$").match
         for next_hwnd in get_all_hwnds():
             if mc_match(get_hwnd_title(next_hwnd)):
                 hwnd = next_hwnd
