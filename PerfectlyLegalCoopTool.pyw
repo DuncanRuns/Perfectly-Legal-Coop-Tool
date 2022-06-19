@@ -179,8 +179,11 @@ if IS_WINDOWS:
         if "--gameDir" in response:
             ind = response.index("--gameDir") + 10
             return take_arg(response, ind).replace("\\", "/")
-        elif "\"-Djava.library.path=" in response:
-            ind = response.index("\"-Djava.library.path=")
+        elif "Djava.library.path" in response:
+            if '"-Djava.library.path' in response:
+                ind = response.index('"-Djava.library.path')
+            else:
+                ind = response.index('-Djava.library.path')
             natives_path = take_arg(response, ind)[20:].replace("\\", "/")
             return os.path.join(os.path.split(natives_path)[0], ".minecraft").replace("\\", "/")
 
