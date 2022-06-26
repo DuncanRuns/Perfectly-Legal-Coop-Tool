@@ -9,7 +9,9 @@ Minecraft Speedrunning Coop Tool to share a clipboard for the use of [Ninjabrain
 - Separate client and server.
 - Coop Clipboard
     - `Receive Clipboard` requires no password; if enabled, it will only copy the server's shared clipboard **when updated** (not constantly).
-    - `Send Clipboard` requires a password; if enabled with the correct password, a copied minecraft overworld position command (f3+c) will be sent to the server.
+    - `Show Angle Box` will create a window that shows the angle from the server's clipboard.
+    - `Send F3+C from MC` requires a password; if enabled with the correct password, a copied minecraft overworld position command (f3+c) will be sent to the server.
+    - `Reset Server Clipboard` requires a password; pressing it will reset the server's clipboard. This automatically happens on world upload, but may be necessary to use if the server can accept multiple worlds.
 - World Upload
     - **(Windows Only)** `Use Latest Window` can be enabled to get the  instance folder from the latest selected Minecraft window.
     - A `MultiMC Instances Folder` can be set for use of world uploading. This is only available  if `Use Latest Window` is disabled.

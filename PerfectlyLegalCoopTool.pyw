@@ -1,5 +1,5 @@
 try:
-    import sys, clipboard, os, json, socket, threading, traceback, time, re, ttkthemes, shutil
+    import sys, clipboard, os, json, socket, threading, traceback, time, re, ttkthemes, shutil, pyttsx3
     if 'win' in sys.platform:
         import subprocess, win32process, win32gui
     import tkinter as tk
@@ -8,7 +8,7 @@ try:
     import tkinter.messagebox as tkMessageBox
     from typing import Callable, List, Union
 except:
-    dependencies = "pypiwin32, pyperclip, clipboard, ttkthemes".split(
+    dependencies = "pypiwin32, pyperclip, clipboard, ttkthemes, pyttsx3".split(
         ", ")
     import os, sys, traceback
     import tkinter.messagebox as tkMessageBox
@@ -35,7 +35,7 @@ except:
     main.withdraw()
 
 
-VERSION = "1.2.1"
+VERSION = "1.3.0"
 
 BUFFER_SIZE = 8192
 IS_WINDOWS = 'win' in sys.platform
@@ -424,6 +424,22 @@ class AngleBox(tk.Toplevel):
             self._var.set("0.00")
 
 
+class TTS:
+    ENGINE = pyttsx3.init()
+
+    @staticmethod
+    def say(message: str):
+        threading.Thread(target=TTS._say_activity, args=(message,)).start()
+
+    @staticmethod
+    def _say_activity(message: str):
+        print("[TTS] " + message)
+        if TTS.ENGINE._inLoop:
+            TTS.ENGINE.endLoop()
+        TTS.ENGINE.say(message)
+        TTS.ENGINE.runAndWait()
+
+
 class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
     def __init__(self, settings: dict = {}, settings_path: str = None) -> None:
         ttkthemes.ThemedTk.__init__(self, theme="breeze".lower())
@@ -554,7 +570,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
             row=1, column=0)
 
         ttk.Button(current_clipboard_frame,
-                   text="Show Angle Box", command=self._show_angle_box).grid(row=2, column=0)
+                   text="Show Angle Box", command=self._show_angle_box).grid(row=3, column=0)
 
         ttk.Separator(clipboard_frame, orient=tk.HORIZONTAL).grid(
             row=100, column=0, columnspan=5, pady=5, sticky="we")
@@ -562,11 +578,14 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         send_frame = ttk.Frame(clipboard_frame)
         send_frame.grid(row=101, column=0, padx=5, pady=5, sticky="w")
 
-        ttk.Checkbutton(send_frame, text="Send Clipboard",
-                        variable=self._send_clipboard_var, command=self._on_send_clipboard_button).grid(row=0, column=0)
+        ttk.Checkbutton(send_frame, text="Send F3+C from MC",
+                        variable=self._send_clipboard_var, command=self._on_send_clipboard_button).grid(row=0, column=0, pady=5)
+
+        ttk.Button(send_frame,
+                   text="Reset Server Clipboard", command=self._request_cb_reset).grid(row=1, column=0, padx=5, pady=5)
 
         password_frame = ttk.Frame(send_frame)
-        password_frame.grid(row=1, column=0, sticky="w")
+        password_frame.grid(row=2, column=0, sticky="w", pady=5)
 
         ttk.Label(password_frame, text="Send Password:").grid(row=0, column=0)
         self._clipboard_password_entry = ttk.Entry(
@@ -636,6 +655,13 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
             self.angle_box = AngleBox(self)
         self.angle_box.focus()
 
+    def _request_cb_reset(self) -> None:
+        self._plct_client.send_with_lock(json.dumps({
+            "type": "copy",
+            "password": self._clipboard_password_entry.get(),
+            "copymsg": ""
+        }).encode())
+
     def _set_instances_path_button(self, *args) -> None:
         ans = ask_for_directory(self._instances_folder)
         if ans != "":
@@ -666,6 +692,7 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         try:
             self._upload_button.config(text="Uploading...")
             if self._plct_client.get_status() == "connected" and ((self._instances_folder is not None and self._instances_folder != "" and not self._use_window_var.get()) or (self._use_window_var.get() and get_latest_mc_hwnd() is not None)):
+                TTS.say("Uploading")
                 if self._use_window_var.get():
                     world_path = get_latest_world_from_window()
                 else:
@@ -676,8 +703,9 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
                     "type": "uploaddone",
                     "password": self._upload_password_entry.get()
                 }).encode())
-                tkMessageBox.showinfo("PLCT: Upload Latest World",
-                                      "Successfully uploaded " + (world_path.replace("\\", "/")) + ".\n(If the password was incorrect, the server ignored your upload)")
+                TTS.say("Done")
+                # tkMessageBox.showinfo("PLCT: Upload Latest World",
+                #                      "Successfully uploaded " + (world_path.replace("\\", "/")) + ".\n(If the password was incorrect, the server ignored your upload)")
             else:
                 tkMessageBox.showerror(
                     "PLCT: Upload Latest World", ((
@@ -763,8 +791,9 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
     def _reset_states(self) -> None:
         self._save_button.config(state="disabled")
         self._undo_button.config(state="disabled")
-        self._clipboard_password_entry.config(
-            state=("enabled" if self._send_clipboard_var.get() else "disabled"))
+        # Don't change state because user can still request reset.
+        # self._clipboard_password_entry.config(
+        #    state=("enabled" if self._send_clipboard_var.get() else "disabled"))
         self._saveable = False
 
     def _loop(self) -> None:
@@ -854,8 +883,9 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
             self.destroy()
 
     def _on_send_clipboard_button(self, *args) -> None:
-        self._clipboard_password_entry.config(
-            state=("enabled" if self._send_clipboard_var.get() else "disabled"))
+        # Don't change state because user can still request reset.
+        # self._clipboard_password_entry.config(
+        #    state=("enabled" if self._send_clipboard_var.get() else "disabled"))
         self._set_saveable()
 
     def _set_saveable(self, *args) -> None:
@@ -899,7 +929,8 @@ class PerfectlyLegalCoopTool(ttkthemes.ThemedTk):
         self._use_window_var.set(
             self._original_settings.get("useWindow", False))
 
-        self._clipboard_password_entry.config(state="enabled")
+        # Don't change state because user can still request reset.
+        # self._clipboard_password_entry.config(state="enabled")
         self._clipboard_password_entry.delete(0, tk.END)
         self._clipboard_password_entry.insert(
             0, self._original_settings.get("clipboardPassword", ""))
